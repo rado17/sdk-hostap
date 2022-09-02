@@ -241,6 +241,8 @@ int zephyr_supp_status(const struct device *dev,
 				struct wifi_iface_status *status)
 {
 	struct wpa_supplicant *wpa_s;
+	struct wpa_signal_info si;
+	int ret;
 
 	wpa_s = get_wpa_s_handle(dev);
 	if (!wpa_s) {
@@ -280,6 +282,10 @@ int zephyr_supp_status(const struct device *dev,
 			/* TODO: Derive this based on association IEs */
 			status->link_mode = WIFI_6;
 		}
+		ret = wpa_drv_signal_poll(wpa_s, &si);
+		if (!ret) {
+			status->rssi = si.current_signal;
+			}
 	}
 
 	return 0;
