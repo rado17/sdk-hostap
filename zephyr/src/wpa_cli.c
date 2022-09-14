@@ -64,6 +64,30 @@ static int cmd_supplicant(const struct shell *shell,
 			argv);
 }
 
+static int wfa_dut_test(const struct shell *shell,
+			  size_t argc,
+			  const char *argv[])
+{
+	printf("arg0: %s\n", argv[0]);
+	return dut_main(argc,
+			argv);
+}
+
+static int wfa_dut_traffic_config(const struct shell *shell,
+			  size_t argc,
+			  const char *argv[])
+{
+	printf("arg0: %s\n", argv[0]);
+	unsigned char *respBuf = os_zalloc(64 * sizeof(unsigned char));
+	int bufLen = 0;
+	int status = -1;
+	char * cmdBuf = argv[1];
+	//char cmdBuf[512] = "traffic_agent_config,profile,IPTV,direction,send,destination,192.165.100.8,destinationPort,5602,sourcePort,5602,duration,10,payloadSize,100,trafficClass,BestEffort,frameRate,1";
+	status = commandHandle(cmdBuf);
+	//status = wfaTGConfig (strlen(cmdBuf), cmdBuf, &bufLen, respBuf);
+	return status;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	wpa_cli_cmds,
 	SHELL_CMD(add_network,
@@ -125,6 +149,14 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		  NULL,
 		  "\"\"",
 		  cmd_supplicant),
+	SHELL_CMD(dut_test,
+		  NULL,
+		  "\"\"",
+		  wfa_dut_test),
+	SHELL_CMD(dut_traffic_config,
+		  NULL,
+		  "\"\"",
+		  wfa_dut_traffic_config),
 	SHELL_SUBCMD_SET_END);
 
 /* Persisting with "wpa_cli" naming for compatibility with Wi-Fi
