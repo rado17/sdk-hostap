@@ -279,6 +279,11 @@ int zephyr_supp_status(const struct device *dev,
 			status->iface_mode = ssid->mode;
 			/* TODO: Derive this based on association IEs */
 			status->link_mode = WIFI_6;
+			printf("ht: %u vht:%u\n", wpa_s->connection_he, wpa_s->connection_vht);
+			status->link_mode = wpa_s->connection_he ? 6 :
+			 (wpa_s->connection_vht ? 5 : 4);
+			printf ("link_mode: %u\n", wpa_s->connection_he ? 6 :
+					  (wpa_s->connection_vht ? 5 : 4));
 		}
 	}
 

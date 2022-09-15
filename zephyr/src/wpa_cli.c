@@ -71,10 +71,12 @@ static int cmd_supplicant(const struct shell *shell,
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	wpa_cli_cmds,
+#if 0
 	SHELL_CMD(scan,
 		  NULL,
 		  "Scan AP",
 		  cmd_wifi_scan),
+#endif
 #ifdef CONFIG_WPA_SUPP
 	SHELL_CMD(add_network,
 		  NULL,
@@ -153,7 +155,7 @@ static int wifi_shell_init(const struct device *unused)
 
 	context.shell = NULL;
 	context.all = 0U;
-	scan_result = 0U;
+	//scan_result = 0U;
 
 	return 0;
 }
