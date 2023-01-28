@@ -1356,6 +1356,34 @@ static int nl80211_get_ext_capab(void *priv, enum wpa_driver_if_type type,
 	return 0;
 }
 
+static int wpa_drv_zep_get_fw_version(void *priv,
+					char *version_str, uint8_t len)
+{
+	struct zep_drv_if_ctx *if_ctx = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+	int ret = -1;
+
+	if_ctx = priv;
+
+	dev_ops = if_ctx->dev_ctx->config;
+
+	if (dev_ops && dev_ops->get_fw_version) {
+		ret = dev_ops->get_fw_version(if_ctx->dev_priv,
+							   version_str, len);
+		if (ret) {
+			wpa_printf(MSG_ERROR, "Failed to get FW version:%d\n",
+					  ret);
+			snprintf(version_str, len, "ERROR");
+			goto out;
+		}
+	} else {
+		wpa_printf(MSG_ERROR, "%s: Not supported\n", __func__);
+		goto out;
+	}
+
+out:
+	return ret;
+}
 const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.name = "zephyr",
 	.desc = "Zephyr wpa_supplicant driver",
@@ -1378,4 +1406,5 @@ const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.send_action = wpa_drv_zep_send_action,
 	.get_hw_feature_data = wpa_drv_get_hw_feature_data,
 	.get_ext_capab = nl80211_get_ext_capab,
+	.get_fw_version = wpa_drv_zep_get_fw_version,
 };

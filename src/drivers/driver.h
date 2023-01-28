@@ -4569,6 +4569,7 @@ struct wpa_driver_ops {
 	 */
 	int (*dpp_listen)(void *priv, bool enable);
 
+	int (*get_fw_version)(void *priv, char *version_str, uint8_t len);
 #ifdef CONFIG_TESTING_OPTIONS
 	int (*register_frame)(void *priv, u16 type,
 			      const u8 *match, size_t match_len,

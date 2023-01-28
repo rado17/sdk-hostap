@@ -319,6 +319,7 @@ int z_wpa_supplicant_status(const struct device *dev,
 
 	if (wpa_s->wpa_state >= WPA_ASSOCIATED) {
 		struct wpa_ssid *ssid = wpa_s->current_ssid;
+		char ver_str[WIFI_FW_LEN] = {0};
 		u8 channel;
 		struct signal_poll_resp signal_poll;
 
@@ -364,6 +365,13 @@ int z_wpa_supplicant_status(const struct device *dev,
 			wpa_printf(MSG_ERROR, "%s:Failed to read RSSI\n",
 				__func__);
 			status->rssi = -WPA_INVALID_NOISE;
+		}
+		if (!wpa_s->driver->get_fw_version) {
+			snprintf(status->fw_ver, WIFI_FW_LEN, "NOT SUPPORTED");
+		} else {
+			wpa_s->driver->get_fw_version(wpa_s->drv_priv,
+							ver_str, WIFI_FW_LEN);
+			os_memcpy(status->fw_ver, ver_str, WIFI_FW_LEN);
 		}
 	} else {
 		ret = 0;
