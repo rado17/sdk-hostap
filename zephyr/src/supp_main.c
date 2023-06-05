@@ -32,6 +32,7 @@ LOG_MODULE_REGISTER(wpa_supplicant, LOG_LEVEL_DBG);
 #include "driver_i.h"
 
 #include "supp_main.h"
+#include "supp_events.h"
 #include "wpa_cli_zephyr.h"
 
 K_SEM_DEFINE(z_wpas_ready_sem, 0, 1);
@@ -154,6 +155,8 @@ static int z_wpas_add_interface(const char* ifname)
 		wpa_printf(MSG_ERROR, "Failed to add iface: %s", ifname);
 		return -1;
 	}
+
+	send_wifi_state_event(ifname, NET_EVENT_WPA_SUPP_CMD_IFACE_ADDED);
 	wpa_s->conf->filter_ssids = 1;
 	wpa_s->conf->ap_scan= 1;
 
@@ -162,7 +165,12 @@ static int z_wpas_add_interface(const char* ifname)
 		k_mutex_unlock(&iface_up_mutex);
 	}
 
-	z_wpa_ctrl_init(wpa_s);
+	ret = z_wpa_ctrl_init(wpa_s);
+	if (ret) {
+		wpa_printf(MSG_ERROR, "Failed to initialize control interface");
+		return ret;
+	}
+	send_wifi_state_event(ifname, NET_EVENT_WPA_SUPP_CMD_READY);
 
 	return 0;
 }
@@ -214,6 +222,7 @@ static int z_wpas_remove_interface(const char* ifname)
 		return -1;
 	}
 
+	send_wifi_state_event(ifname, NET_EVENT_WPA_SUPP_CMD_IFACE_REMOVED);
 	return 0;
 }
 
@@ -446,6 +455,8 @@ static void z_wpas_start(void)
 
 	close(z_wpas_event_sockpair[0]);
 	close(z_wpas_event_sockpair[1]);
+
+	send_wifi_state_event(DEFAULT_IFACE_NAME, NET_EVENT_WPA_SUPP_CMD_NOT_READY);
 
 out:
 #ifdef CONFIG_MATCH_IFACE
