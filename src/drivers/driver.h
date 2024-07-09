@@ -3804,6 +3804,14 @@ struct wpa_driver_ops {
 	int (*get_conn_info)(void *priv, struct wpa_conn_info *conn_info);
 
 	/**
+	 * eapol_rx - Process received EAPOL frame
+	 * @priv: Private driver interface data
+	 * @buf: EAPOL frame
+	 * @len: Length of buf 
+	 */
+	void (*eapol_rx)(void *priv, uint8_t *buf, size_t len);
+
+	/**
 	 * channel_info - Get parameters of the current operating channel
 	 * @priv: Private driver interface data
 	 * @channel_info: Channel info structure

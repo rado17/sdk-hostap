@@ -17,9 +17,9 @@
 #include "ctrl_iface.h"
 #include "common/version.h"
 #include "common/ieee802_11_defs.h"
-#include "wpa_cli_cmds.h"
+//#include "wpa_cli_cmds.h"
 
-#define CMD_BUF_LEN  1024
+#define CMD_BUF_LEN  8192
 
 #define VENDOR_ELEM_FRAME_ID \
 	"  0: Probe Req (P2P), 1: Probe Resp (P2P) , 2: Probe Resp (GO), " \
@@ -2944,6 +2944,18 @@ static int wpa_cli_cmd_dscp_query(struct wpa_ctrl *ctrl, int argc, char *argv[])
 #endif /* !CONFIG_ZEPHYR || (CONFIG_ZEPHYR && CONFIG_WPA_CLI)*/
 
 
+enum wpa_cli_cmd_flags {
+        cli_cmd_flag_none               = 0x00,
+        cli_cmd_flag_sensitive          = 0x01
+};
+
+struct wpa_cli_cmd {
+        const char *cmd;
+        int (*handler)(struct wpa_ctrl *ctrl, int argc, char *argv[]);
+        char ** (*completion)(const char *str, int pos);
+        enum wpa_cli_cmd_flags flags;
+        const char *usage;
+};
 
 
 const struct wpa_cli_cmd wpa_cli_commands[] = {
@@ -3641,4 +3653,57 @@ const struct wpa_cli_cmd wpa_cli_commands[] = {
 
 const size_t wpa_cli_commands_size = ARRAY_SIZE(wpa_cli_commands);
 
+int wpa_request(struct wpa_ctrl *ctrl, int argc, char *argv[])
+{
+	const struct wpa_cli_cmd *cmd, *match = NULL;
+	int count;
+	int ret = 0;
+
+        if (argc > 1 && os_strncasecmp(argv[0], "IFNAME=", 7) == 0) {
+                ifname_prefix = argv[0] + 7;
+                argv = &argv[1];
+                argc--;
+        } else
+                ifname_prefix = NULL;
+
+        if (argc == 0)
+                return -1;
+
+        count = 0;
+        cmd = wpa_cli_commands;
+        while (cmd->cmd) {
+                if (os_strncasecmp(cmd->cmd, argv[0], os_strlen(argv[0])) == 0)
+                {
+                        match = cmd;
+                        if (os_strcasecmp(cmd->cmd, argv[0]) == 0) {
+                                /* we have an exact match */
+                                count = 1;
+                                break;
+                        }
+                        count++;
+                }
+                cmd++;
+        }
+
+        if (count > 1) {
+                wpa_printf(MSG_INFO, "Ambiguous command '%s'; possible commands:", argv[0]);
+                cmd = wpa_cli_commands;
+                while (cmd->cmd) {
+                        if (os_strncasecmp(cmd->cmd, argv[0],
+                                           os_strlen(argv[0])) == 0) {
+                                wpa_printf(MSG_INFO, " %s", cmd->cmd);
+                        }
+                        cmd++;
+                }
+                wpa_printf(MSG_INFO, "\n");
+                ret = 1;
+        } else if (count == 0) {
+                wpa_printf(MSG_INFO, "Unknown command '%s'\n", argv[0]);
+                ret = 1;
+        } else {
+                ret = match->handler(ctrl, argc - 1, &argv[1]);
+        }
+
+        return ret;
+}
 

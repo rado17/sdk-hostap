@@ -24,8 +24,8 @@
 #include "wpa_cli_zephyr.h"
 #include "ctrl_iface_zephyr.h"
 
-#define CMD_BUF_LEN  1024
-#define MAX_CMD_SIZE 512
+#define CMD_BUF_LEN  8192
+#define MAX_CMD_SIZE 8192
 #define MAX_RESPONSE_SIZE 512
 #define DEFAULT_IFNAME "wlan0"
 #define MAX_ARGS 32

@@ -286,6 +286,23 @@ void wpa_drv_zep_event_mac_changed(struct zep_drv_if_ctx *if_ctx)
 			NULL);
 }
 
+void wpa_drv_zep_handle_eapol_rx(struct zep_drv_if_ctx *if_ctx, const uint8_t *src_addr, const uint8_t *buf, size_t len)
+{
+	union wpa_event_data event;
+
+	printf("EAPOL RX from " MACSTR " len %d\n", MAC2STR(src_addr), len);
+	for (int i = 0; i < len; i++) {
+		printf("%02x ", buf[i]);
+	}
+	printf("\n");
+
+	os_memset(&event, 0, sizeof(event));
+	event.eapol_rx.src = src_addr;
+	event.eapol_rx.data = buf;
+	event.eapol_rx.data_len = len;
+	wpa_supplicant_event_wrapper(if_ctx->supp_if_ctx, EVENT_EAPOL_RX, &event);
+}
+
 static int wpa_drv_zep_abort_scan(void *priv,
 				  u64 scan_cookie)
 {
@@ -1050,6 +1067,7 @@ static void *wpa_drv_zep_init(void *ctx,
 	callbk_fns.get_wiphy_res = wpa_drv_zep_event_get_wiphy;
 	callbk_fns.mgmt_rx = wpa_drv_zep_event_mgmt_rx;
 	callbk_fns.mac_changed = wpa_drv_zep_event_mac_changed;
+	callbk_fns.eapol_rx = wpa_drv_zep_handle_eapol_rx;
 
 	if_ctx->dev_priv = dev_ops->init(if_ctx,
 					 ifname,
@@ -1673,6 +1691,7 @@ static int wpa_drv_zep_get_conn_info(void *priv, struct wpa_conn_info *ci)
 out:
 	return ret;
 }
+
 
 #ifdef CONFIG_AP
 static int register_mgmt_frames_ap(struct zep_drv_if_ctx *if_ctx)

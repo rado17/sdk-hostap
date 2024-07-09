@@ -79,6 +79,16 @@ static int f_rng(void *p_rng, unsigned char *buf, size_t len)
 	return random_get_bytes(buf, len);
 }
 
+static void my_debug(void *ctx, int level,
+                     const char *file, int line,
+                     const char *str)
+{
+    ((void) level);
+
+    printf("%s:%04d: %s", file, line, str);
+    fflush((FILE *) ctx);
+}
+
 static void tls_mbedtls_cleanup(tls_context_t *tls)
 {
 	if (!tls) {
@@ -193,6 +203,12 @@ static int
 set_ca_cert(tls_context_t *tls, const unsigned char *cacert, size_t cacert_len)
 {
 	tls->cacert_ptr = &tls->cacert;
+
+	for(int i = 0; i < cacert_len; i++)
+	{
+		printf("%c", cacert[i]);
+	}
+	printf("\n");
 	mbedtls_x509_crt_init(tls->cacert_ptr);
 	int ret = mbedtls_x509_crt_parse(tls->cacert_ptr, cacert, cacert_len);
 	if (ret < 0) {
@@ -652,6 +668,11 @@ static int tls_create_mbedtls_handle(
 	mbedtls_ssl_conf_rng(
 	    &tls->conf, tls_ctr_drbg_random, NULL);
 
+#if 0
+	mbedtls_debug_set_threshold(8);
+    mbedtls_ssl_conf_dbg(&tls->conf, my_debug, stdout);
+#endif
+	
 	ret = mbedtls_ssl_setup(&tls->ssl, &tls->conf);
 	if (ret != 0) {
 		wpa_printf(MSG_ERROR, "mbedtls_ssl_setup returned -0x%x", -ret);

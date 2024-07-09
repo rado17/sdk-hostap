@@ -1293,6 +1293,7 @@ int eapol_sm_rx_eapol(struct eapol_sm *sm, const u8 *src, const u8 *buf,
 	int res = 1;
 	size_t plen;
 
+	wpa_printf(MSG_DEBUG, "%s:%d\n", __func__, __LINE__);
 	if (sm == NULL)
 		return 0;
 	sm->dot1xSuppEapolFramesRx++;
@@ -1300,17 +1301,20 @@ int eapol_sm_rx_eapol(struct eapol_sm *sm, const u8 *src, const u8 *buf,
 		sm->dot1xSuppInvalidEapolFramesRx++;
 		return 0;
 	}
+	wpa_printf(MSG_DEBUG, "%s:%d\n", __func__, __LINE__);
 	hdr = (const struct ieee802_1x_hdr *) buf;
 	sm->dot1xSuppLastEapolFrameVersion = hdr->version;
 	os_memcpy(sm->dot1xSuppLastEapolFrameSource, src, ETH_ALEN);
 	if (hdr->version < EAPOL_VERSION) {
 		/* TODO: backwards compatibility */
 	}
+	wpa_printf(MSG_DEBUG, "%s:%d\n", __func__, __LINE__);
 	plen = be_to_host16(hdr->length);
 	if (plen > len - sizeof(*hdr)) {
 		sm->dot1xSuppEapLengthErrorFramesRx++;
 		return 0;
 	}
+	wpa_printf(MSG_DEBUG, "%s:%d\n", __func__, __LINE__);
 #ifdef CONFIG_WPS
 	if (sm->conf.wps && sm->conf.workaround &&
 	    plen < len - sizeof(*hdr) &&
@@ -1340,6 +1344,7 @@ int eapol_sm_rx_eapol(struct eapol_sm *sm, const u8 *src, const u8 *buf,
 
 	switch (hdr->type) {
 	case IEEE802_1X_TYPE_EAP_PACKET:
+	wpa_printf(MSG_DEBUG, "%s:%d\n", __func__, __LINE__);
 		if (sm->conf.workaround) {
 			/*
 			 * An AP has been reported to send out EAP message with

@@ -5483,6 +5483,7 @@ void wpa_supplicant_event(void *ctx, enum wpa_event_type event,
 #endif /* CONFIG_DPP */
 		break;
 	case EVENT_EAPOL_RX:
+		printf("Received EAPOL Event\n");
 		wpa_supplicant_rx_eapol(wpa_s, data->eapol_rx.src,
 					data->eapol_rx.data,
 					data->eapol_rx.data_len);
