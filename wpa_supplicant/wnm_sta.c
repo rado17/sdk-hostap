@@ -206,11 +206,20 @@ int ieee802_11_send_wnmsleep_req(struct wpa_supplicant *wpa_s,
 
 
 static void wnm_sleep_mode_enter_success(struct wpa_supplicant *wpa_s,
+					 u16 intval,
 					 const u8 *tfsresp_ie_start,
 					 const u8 *tfsresp_ie_end)
 {
+	u8 ivbuf[2];
+	u16 ivbuf_len = sizeof(ivbuf);
+
+	/* Hand the AP-granted WNM Sleep Interval to the driver so that it can
+	 * size the extended sleep it is about to enter. 0 means the STA did
+	 * not request a specific wake interval (see 802.11-2020 9.4.2.81).
+	 */
+	WPA_PUT_LE16(ivbuf, intval);
 	wpa_drv_wnm_oper(wpa_s, WNM_SLEEP_ENTER_CONFIRM,
-			 wpa_s->bssid, NULL, NULL);
+			 wpa_s->bssid, ivbuf, &ivbuf_len);
 	/* remove GTK/IGTK ?? */
 
 	/* set the TFS Resp IE(s) */
@@ -403,7 +412,9 @@ static void ieee802_11_rx_wnmsleep_resp(struct wpa_supplicant *wpa_s,
 			   "frame (action=%d, intval=%d)",
 			   wnmsleep_ie->action_type, wnmsleep_ie->intval);
 		if (wnmsleep_ie->action_type == WNM_SLEEP_MODE_ENTER) {
-			wnm_sleep_mode_enter_success(wpa_s, tfsresp_ie_start,
+			wnm_sleep_mode_enter_success(wpa_s,
+						     le_to_host16(wnmsleep_ie->intval),
+						     tfsresp_ie_start,
 						     tfsresp_ie_end);
 		} else if (wnmsleep_ie->action_type == WNM_SLEEP_MODE_EXIT) {
 			wnm_sleep_mode_exit_success(wpa_s, frm, key_len_total);
