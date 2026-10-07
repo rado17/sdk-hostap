@@ -6,6 +6,10 @@
  * See README for more details.
  */
 #include <zephyr/kernel.h>
+#if defined(CONFIG_SHELL)
+#include <zephyr/shell/shell.h>
+#include <zephyr/shell/shell_uart.h>
+#endif /* CONFIG_SHELL */
 
 #include "includes.h"
 #include "utils/common.h"
@@ -3159,6 +3163,30 @@ static int wpa_drv_zep_wnm_oper(void *priv, enum wnm_oper oper, const u8 *peer,
 			return -1;
 		}
 
+#if defined(CONFIG_SHELL)
+		/* Put the radio into extended sleep for the interval the AP
+		 * granted. The return code is checked rather than discarded:
+		 * if the command is not present on this build the radio will
+		 * not sleep at all, and that is otherwise invisible.
+		 */
+		{
+			char cmd[48];
+			int sret;
+
+			os_snprintf(cmd, sizeof(cmd),
+				    "nrf70 util extended_sleep %u", intval);
+			sret = shell_execute_cmd(shell_backend_uart_get_ptr(),
+						 cmd);
+			if (sret) {
+				wpa_printf(MSG_ERROR, "%s: '%s' failed: %d",
+					   __func__, cmd, sret);
+			} else {
+				wpa_printf(MSG_DEBUG, "%s: '%s' ok",
+					   __func__, cmd);
+			}
+		}
+#endif /* CONFIG_SHELL */
+
 		wpa_printf(MSG_DEBUG,
 			   "%s: WNM-Sleep accepted by " MACSTR
 			   " - extended sleep enabled (interval %u)",
@@ -3167,6 +3195,27 @@ static int wpa_drv_zep_wnm_oper(void *priv, enum wnm_oper oper, const u8 *peer,
 	}
 
 	case WNM_SLEEP_EXIT_CONFIRM:
+#if defined(CONFIG_SHELL)
+		/* Cancel the extended sleep first - the reverse of the enter
+		 * path - so the radio is awake before power save is torn
+		 * down. An interval of 0 means "no extended sleep".
+		 */
+		{
+			const char *cmd = "nrf70 util extended_sleep 0";
+			int sret;
+
+			sret = shell_execute_cmd(shell_backend_uart_get_ptr(),
+						 cmd);
+			if (sret) {
+				wpa_printf(MSG_ERROR, "%s: '%s' failed: %d",
+					   __func__, cmd, sret);
+			} else {
+				wpa_printf(MSG_DEBUG, "%s: '%s' ok",
+					   __func__, cmd);
+			}
+		}
+#endif /* CONFIG_SHELL */
+
 		os_memset(&params, 0, sizeof(params));
 		params.type = WIFI_PS_PARAM_STATE;
 		params.enabled = WIFI_PS_DISABLED;
