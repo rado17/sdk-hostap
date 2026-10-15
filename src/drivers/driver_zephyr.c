@@ -3101,15 +3101,30 @@ static int wpa_drv_zep_set_ps_param(struct zep_drv_if_ctx *if_ctx,
 	return ret;
 }
 
-/* WNM-Sleep Mode extended sleep.
+/* WNM-Sleep Mode outcome reporting.
  *
- * wnm_sleep_mode_enter_success() / _exit_success() call this only after the
- * AP's WNM-Sleep Mode Response has been received and accepted, so power save
- * is switched on strictly on a successful negotiation rather than when the
- * request is sent. Listen-interval based wakeup is what lets the STA sleep
- * past a DTIM interval; the interval value itself is configured separately
- * (WIFI_PS_PARAM_LISTEN_INTERVAL) before the exchange.
+ * The supplicant calls wnm_oper once the AP's WNM-Sleep Mode Response has been
+ * processed. On entry the driver only reports the outcome: whoever requested
+ * WNM-Sleep turns power save and extended sleep on once it learns the request
+ * was accepted. On exit confirm the driver still cancels extended sleep and
+ * turns power save off.
  */
+static wpa_drv_zep_wnm_sleep_cb_t wnm_sleep_cb;
+static void *wnm_sleep_cb_user_data;
+
+void wpa_drv_zep_set_wnm_sleep_cb(wpa_drv_zep_wnm_sleep_cb_t cb, void *user_data)
+{
+	wnm_sleep_cb_user_data = user_data;
+	wnm_sleep_cb = cb;
+}
+
+static void wnm_sleep_notify(enum wnm_oper oper, u16 intval)
+{
+	if (wnm_sleep_cb) {
+		wnm_sleep_cb(oper, intval, wnm_sleep_cb_user_data);
+	}
+}
+
 static int wpa_drv_zep_wnm_oper(void *priv, enum wnm_oper oper, const u8 *peer,
 				u8 *buf, u16 *buf_len)
 {
@@ -3124,118 +3139,46 @@ static int wpa_drv_zep_wnm_oper(void *priv, enum wnm_oper oper, const u8 *peer,
 	switch (oper) {
 	case WNM_SLEEP_ENTER_CONFIRM: {
 		u16 intval = 0;
-		struct wpa_conn_info ci;
-		unsigned int listen_int = 0;
-		unsigned int sleep_sec = 0;
 
-		/* WNM Sleep Interval granted by the AP, passed in by
-		 * wnm_sleep_mode_enter_success().
+		/* WNM Sleep Interval granted by the AP, in DTIM intervals,
+		 * passed in by wnm_sleep_mode_enter_success().
 		 */
 		if (buf && buf_len && *buf_len >= 2) {
 			intval = WPA_GET_LE16(buf);
 		}
 
-		/* The granted interval counts DTIM intervals (802.11-2020
-		 * 9.4.2.89), but the listen interval is in beacon intervals and
-		 * extended_sleep takes whole seconds - convert using the
-		 * current BSS's DTIM period and beacon interval.
+		/* Power save and extended sleep are configured by whoever
+		 * requested WNM-Sleep, once it learns the request was
+		 * accepted - the driver only reports the outcome.
 		 */
-		os_memset(&ci, 0, sizeof(ci));
-		if (intval && !wpa_drv_zep_get_conn_info(if_ctx, &ci) &&
-		    ci.dtim_period && ci.beacon_interval) {
-			listen_int = (unsigned int)intval * ci.dtim_period;
-			if (listen_int > 0xffff) {
-				listen_int = 0xffff;
-			}
-			/* 1 TU = 1024 us. Round down so the radio never sleeps
-			 * past the interval the AP agreed to.
-			 */
-			sleep_sec = (unsigned int)(((u64)intval * ci.dtim_period *
-						    ci.beacon_interval * 1024U) /
-						   1000000U);
-		} else if (intval) {
-			wpa_printf(MSG_ERROR,
-				   "%s: DTIM period/beacon interval unknown - cannot convert WNM Sleep Interval %u",
-				   __func__, intval);
-		}
-
-		/* Sleep across the granted interval rather than every DTIM.
-		 * If it could not be converted (interval 0, or no BSS timing),
-		 * or the driver rejects it, keep the current wakeup
-		 * configuration and still enable power save, just not
-		 * extended.
-		 */
-		os_memset(&params, 0, sizeof(params));
-		params.type = WIFI_PS_PARAM_LISTEN_INTERVAL;
-		params.listen_interval = listen_int;
-
-		if (listen_int && !wpa_drv_zep_set_ps_param(if_ctx, &params)) {
-			os_memset(&params, 0, sizeof(params));
-			params.type = WIFI_PS_PARAM_WAKEUP_MODE;
-			params.wakeup_mode =
-				WIFI_PS_WAKEUP_MODE_LISTEN_INTERVAL;
-			if (wpa_drv_zep_set_ps_param(if_ctx, &params)) {
-				return -1;
-			}
-		} else {
-			wpa_printf(MSG_DEBUG,
-				   "%s: WNM Sleep Interval %u DTIMs (listen interval %u) unusable - keeping current wakeup mode",
-				   __func__, intval, listen_int);
-		}
-
-		os_memset(&params, 0, sizeof(params));
-		params.type = WIFI_PS_PARAM_STATE;
-		params.enabled = WIFI_PS_ENABLED;
-		if (wpa_drv_zep_set_ps_param(if_ctx, &params)) {
-			return -1;
-		}
-
-#if defined(CONFIG_SHELL)
-		/* Put the radio into extended sleep for the interval the AP
-		 * granted. The return code is checked rather than discarded:
-		 * if the command is not present on this build the radio will
-		 * not sleep at all, and that is otherwise invisible. The
-		 * command only takes whole seconds, so an interval shorter
-		 * than one second is left to the listen interval alone.
-		 */
-		if (sleep_sec == 0) {
-			wpa_printf(MSG_DEBUG,
-				   "%s: WNM Sleep Interval %u DTIMs is under 1 s - not using extended sleep",
-				   __func__, intval);
-		} else {
-			char cmd[48];
-			int sret;
-
-			os_snprintf(cmd, sizeof(cmd),
-				    "nrf70 util extended_sleep %u", sleep_sec);
-			sret = shell_execute_cmd(shell_backend_uart_get_ptr(),
-						 cmd);
-			if (sret) {
-				wpa_printf(MSG_ERROR, "%s: '%s' failed: %d",
-					   __func__, cmd, sret);
-			} else {
-				wpa_printf(MSG_DEBUG, "%s: '%s' ok",
-					   __func__, cmd);
-			}
-		}
-#endif /* CONFIG_SHELL */
-
 		wpa_printf(MSG_DEBUG,
-			   "%s: WNM-Sleep accepted by " MACSTR
-			   " - interval %u DTIMs (DTIM %u, beacon %u TU): listen interval %u, extended sleep %u s",
-			   __func__, MAC2STR(peer), intval, ci.dtim_period,
-			   ci.beacon_interval, listen_int, sleep_sec);
+			   "%s: WNM-Sleep accepted by " MACSTR " - interval %u DTIMs",
+			   __func__, MAC2STR(peer), intval);
+		wnm_sleep_notify(oper, intval);
 		return 0;
 	}
 
+	case WNM_SLEEP_ENTER_FAIL:
+	case WNM_SLEEP_EXIT_FAIL:
+		wpa_printf(MSG_DEBUG, "%s: WNM-Sleep %s rejected by " MACSTR,
+			   __func__,
+			   oper == WNM_SLEEP_ENTER_FAIL ? "enter" : "exit",
+			   MAC2STR(peer));
+		wnm_sleep_notify(oper, 0);
+		return 0;
+
 	case WNM_SLEEP_EXIT_CONFIRM:
 #if defined(CONFIG_SHELL)
-		/* Cancel the extended sleep first - the reverse of the enter
-		 * path - so the radio is awake before power save is torn
-		 * down. An interval of 0 means "no extended sleep".
+		/* Cancel the extended sleep first so the radio is awake before
+		 * power save is torn down. An interval of 0 means "no extended
+		 * sleep".
 		 */
 		{
+#if defined(CONFIG_WIFI_NRF71)
+			const char *cmd = "nrf71 util extended_sleep 0";
+#else
 			const char *cmd = "nrf70 util extended_sleep 0";
+#endif
 			int sret;
 
 			sret = shell_execute_cmd(shell_backend_uart_get_ptr(),
@@ -3255,20 +3198,14 @@ static int wpa_drv_zep_wnm_oper(void *priv, enum wnm_oper oper, const u8 *peer,
 		params.enabled = WIFI_PS_DISABLED;
 		wpa_drv_zep_set_ps_param(if_ctx, &params);
 
-		os_memset(&params, 0, sizeof(params));
-		params.type = WIFI_PS_PARAM_WAKEUP_MODE;
-		params.wakeup_mode = WIFI_PS_WAKEUP_MODE_DTIM;
-		wpa_drv_zep_set_ps_param(if_ctx, &params);
-
 		wpa_printf(MSG_DEBUG,
 			   "%s: WNM-Sleep exit confirmed - extended sleep disabled",
 			   __func__);
+		wnm_sleep_notify(oper, 0);
 		return 0;
 
 	default:
-		/* Enter/exit failures need no action (power save is left
-		 * alone), and TFS is not negotiated here.
-		 */
+		/* TFS is not negotiated here. */
 		wpa_printf(MSG_DEBUG, "%s: WNM oper %d not handled", __func__,
 			   oper);
 		return -1;
