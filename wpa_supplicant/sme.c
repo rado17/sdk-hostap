@@ -3466,7 +3466,7 @@ static void sme_sa_query_timer(void *eloop_ctx, void *timeout_ctx)
 }
 
 
-static void sme_start_sa_query(struct wpa_supplicant *wpa_s)
+void sme_start_sa_query(struct wpa_supplicant *wpa_s)
 {
 	sme_sa_query_timer(wpa_s, NULL);
 }

@@ -12575,6 +12575,24 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
 	} else if (os_strncmp(buf, "STATUS", 6) == 0) {
 		reply_len = wpa_supplicant_ctrl_iface_status(
 			wpa_s, buf + 6, reply, reply_size);
+	} else if (os_strcmp(buf, "SA_QUERY") == 0) {
+		/* On-demand protected keep-alive for sta_set_rfeature,
+		 * prog,IoTLP,KeepAlive,Mgmt,FrameName,SAQuery (SHEL-4425): reuses
+		 * the association-comeback SA Query machinery to send one SA
+		 * Query Request, rather than waiting for the disconnect event
+		 * that normally triggers it. */
+		if (wpa_s->wpa_state != WPA_COMPLETED) {
+			reply_len = -1;
+		} else if (wpas_get_ssid_pmf(wpa_s, wpa_s->current_ssid) ==
+			   NO_MGMT_FRAME_PROTECTION) {
+			reply_len = -1;
+		} else {
+#ifdef CONFIG_SME
+			sme_start_sa_query(wpa_s);
+#else /* CONFIG_SME */
+			reply_len = -1;
+#endif /* CONFIG_SME */
+		}
 	} else if (os_strcmp(buf, "PMKSA") == 0) {
 		reply_len = wpas_ctrl_iface_pmksa(wpa_s, reply, reply_size);
 	} else if (os_strcmp(buf, "PMKSA_FLUSH") == 0) {
